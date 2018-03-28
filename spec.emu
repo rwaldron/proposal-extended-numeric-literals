@@ -1,0 +1,241 @@
+<pre class="metadata">
+title: Extended Numeric Literal (Alternative Proposal)
+status: proposal
+stage: 1
+location: https://rwaldron.github.io/proposal-extended-numeric-literals/
+contributors: Rick Waldron, Leo Balter
+copyright: false
+</pre>
+<emu-intro id="sec-intro">
+  <h1>Introduction</h1>
+
+  <p>
+    This document describes an alternative to the <a href="https://github.com/tc39/proposal-extended-numeric-literals/">Extended Numeric Literals</a> proposal. This design's primary goals are to avoid conflict with the Stage 3 Numeric Literal Separator feature and to provide a mechanism that protects extensions from shadowing hazards.
+  </p>
+</emu-intro>
+
+
+<emu-clause id="sec-properties-of-the-number-constructor">
+  <h1>Properties of the Number Constructor</h1>
+
+  <emu-clause id="sec-number.extensions-object">
+    <h1>The Number.extensions Object</h1>
+
+    <p>The Number.extensions object is the <dfn>%Number_extensions%</dfn> intrinsic object and the initial value of the `extensions` property of the `Number` object. The Number.extensions object is a single ordinary object.</p>
+    <p>The value of the [[Prototype]] internal slot of the Number.extensions object is the intrinsic object %ObjectPrototype%.</p>
+    <p>The Number.extensions object is not a function object. It does not have a [[Construct]] internal method; it is not possible to use the Number.extensions object as a constructor with the `new` operator. The Number.extensions object also does not have a [[Call]] internal method; it is not possible to invoke the Number.extensions object as a function.</p>
+
+
+    <p>This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+    </p>
+
+    <p>This object provides functions to interact with the [[NumericExtensionHandlerMap]].</p>
+
+    <emu-clause id="sec-function-properties-of-the-number.extensions-object">
+      <h1>Function Properties of the Number.extensions Object</h1>
+      <emu-table id="table-1" caption="Function Properties of the Number.extensions Object">
+        <table>
+          <tbody>
+          <tr>
+            <th>
+              Function Name
+            </th>
+            <th>
+              Behavior
+            </th>
+          </tr>
+          <tr>
+            <td>
+              `has(`_extensionKey_`)`
+            </td>
+            <td>
+              <emu-alg>
+                When the `has` function is called with arguments _extensionKey_, the following steps are taken:
+
+                1. Let _key_ be ? ToString( _extensionKey_ ).
+                1. Assert: _key_ is a String value.
+                1. Let _realm_ be the current Realm Record.
+                1. Let _handlerMap_ be _realm_.[[NumericExtensionHandlerMap]].
+                1. For each element _e_ of _handlerMap_, do
+                  1. If SameValue(_e_.[[Key]], _key_) is *true*, return *true*.
+                1. Return *false*.
+              </emu-alg>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              `register(`_extensionKey_`, `_handler_`)`
+            </td>
+            <td>
+              <emu-alg>
+                When the `register` function is called with arguments _extensionKey_ and _handler_, the following steps are taken:
+
+                1. Let _key_ be ? ToString( _extensionKey_ ).
+                1. Assert: _key_ is a String value.
+                1. Let _realm_ be the current Realm Record.
+                1. Let _handlerMap_ be _realm_.[[NumericExtensionHandlerMap]].
+                1. If IsCallable(_handler_) is *false*, throw a *TypeError* exception.
+                1. For each element _e_ of _handlerMap_, do
+                  1. If SameValue(_e_.[[Key]], _key_) is *true*, then throw a *TypeError* exception.
+                1. Perform SetIntegrityLevel(_handler_, `"frozen"`).
+                1. Append the Record{[[Key]]: _key_, [[Handler]]: _handler_} to _handlerMap_.
+                1. Return *undefined*.
+
+              </emu-alg>
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </emu-table>
+
+      <p>All methods of this instance have the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+      </p>
+    </emu-clause>
+  </emu-clause>
+</emu-clause>
+
+<emu-clause id="sec-syntax">
+  <h1>Syntax</h1>
+
+  <emu-grammar>
+      PrimaryExpression[Yield, Await] :
+        `this`
+        IdentifierReference[?Yield, ?Await]
+        Literal
+        ArrayLiteral[?Yield, ?Await]
+        ObjectLiteral[?Yield, ?Await]
+        FunctionExpression
+        ClassExpression[?Yield, ?Await]
+        GeneratorExpression
+        AsyncFunctionExpression
+        RegularExpressionLiteral
+        TemplateLiteral[?Yield, ?Await, ~Tagged]
+        CoverParenthesizedExpressionAndArrowParameterList[?Yield, ?Await] #parencover
+        <ins>ExtendedNumericLiteral</ins>
+
+      ExtendedNumericLiteral :
+        NumericLiteral [no |LineTerminator| here] `~` Identifier
+  </emu-grammar>
+  <emu-note>
+  TODO: This grammar needs to be revisited to determine the correct location for definition
+
+  </emu-note>
+
+</emu-clause>
+
+<emu-clause id="sec-semantics">
+  <h1>Semantics</h1>
+
+  <emu-clause id="sec-runtime-semantics">
+    <h1>Runtime Semantics: Evaluation</h1>
+
+    <emu-grammar>
+      ExtendedNumericLiteral :
+        NumericLiteral [no |LineTerminator| here] `~` Identifier
+    </emu-grammar>
+    <emu-alg>
+      1. Let _string_ be a String Value consisting of the code units of |NumericLiteral|.
+      1. Let _number_ be the result of evaluating |NumericLiteral|.
+      1. Let _realm_ be the current Realm Record.
+      1. Let _nemcache_ be _realm_.[[NumericExtensionMap]].
+      1. Let _count_ be the number of elements in _nemcache_.
+      1. Let _object_ be *null*.
+      1. Let _done_ be *false*.
+      1. Let _k_ be *0*.
+      1. Repeat, while _done_ is *false* and _k_ < _count_,
+        1. If ! SameValue(_nemcache_[_k_][[Key]], _string_) is *true*, then
+            1. Set _object_ to _nemcache_[_k_][[Object]].
+            1. Set _done_ to *true*.
+        1. Increment _k_ by 1;
+      1. If _object_ is *null*,
+        1. Let _object_ be ! ObjectCreate(*null*).
+        1. Perform ! CreateDataProperty(_object_, `"string"`, _string_).
+        1. Perform ! CreateDataProperty(_object_, `"number"`, _number_).
+        1. Perform SetIntegrityLevel(_object_, `"frozen"`).
+        1. Append the Record{[[Key]]: _string_, [[Object]]: _object_} to _nemcache_.
+      1. Let _extension_ be the String Value of |Identifer|.
+      1. Let _handler_ be the empty String.
+      1. Let _handlerMap_ be _realm_.[[NumericExtensionHandlerMap]].
+      1. For each element _e_ of _handlerMap_, do
+        1. If SameValue(_e_.[[Key]], _extension_) is *true*, then
+          1. Set _handler_ to _e_.[[Handler]].
+      1. If _handler_ is ~empty~, throw a *TypeError* exception.
+      1. Return ? Call(*undefined*, _handler_, _object_).
+    </emu-alg>
+  </emu-clause>
+</emu-clause>
+
+  <emu-clause id="sec-code-realms">
+    <h1>Realms</h1>
+    <emu-table id="table-21" caption="Realm Record Fields">
+      <table>
+        <tbody>
+        <tr>
+          <th>
+            Field Name
+          </th>
+          <th>
+            Value
+          </th>
+          <th>
+            Meaning
+          </th>
+        </tr>
+        <tr>
+          <td>
+            <ins>[[NumericExtensionMap]]</ins>
+          </td>
+          <td>
+            <ins>A List of Record { [[Key]]: String, [[Object]]: Object }.</ins>
+          </td>
+          <td>
+            <ins>Literal objects are canonicalized separately for each realm using its Realm Record's [[NumericExtensionMap]]. Each [[Key]] value is a String of the source text for the _NumericLiteral_ part of the |ExtendedNumericLiteral|. The associated [[Object]] value is the corresponding object that is passed to a tag function.</ins>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <ins>[[NumericExtensionHandlerMap]]</ins>
+          </td>
+          <td>
+            <ins>A List of Record { [[Key]]: String, [[Handler]]: Function }.</ins>
+          </td>
+          <td>
+            <ins>Literal objects are canonicalized separately for each realm using its Realm Record's [[NumericExtensionHandlerMap]]. Each [[Key]] value is a String that corresponds to the _Identifier_ part of the |ExtendedNumericLiteral|. The associated [[Handler]] value is a function that accepts an [[Object]] value (See [[NumericExtensionMap]]) and returns a user-defined value that will be used as the result of evaluating a |ExtendedNumericLiteral|.</ins>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </emu-table>
+  </emu-clause>
+
+<emu-clause id="sec-well-known-intrinsic-objects">
+  <h1>Well-Known Intrinsic Objects</h1>
+  <emu-table id="table-7" caption="Well-Known Intrinsic Objects">
+    <table>
+      <tbody>
+      <tr>
+        <th>
+          Intrinsic Name
+        </th>
+        <th>
+          Global Name
+        </th>
+        <th>
+          ECMAScript Language Association
+        </th>
+      </tr>
+      <tr>
+        <td>
+          <ins>%Number_extensions%</ins>
+        </td>
+        <td>
+          <ins>`Number.extensions`</ins>
+        </td>
+        <td>
+          <ins>The initial value of the `extensions` data property of %Number% (<emu-xref href="#sec-number.extensions-object"></emu-xref>).</ins>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </emu-table>
+</emu-clause>

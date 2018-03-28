@@ -1,0 +1,16 @@
+{
+  "name": "proposal-extended-numeric-literals",
+  "description": "Counter proposal to https://github.com/tc39/proposal-extended-numeric-literals/",
+  "scripts": {
+    "build": "ecmarkup spec.emu > index.html"
+  },
+  "homepage": "https://github.com/rwaldron/proposal-extended-numeric-literals",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rwaldron/proposal-extended-numeric-literals.git"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "ecmarkup": "^3.11.5"
+  }
+}
